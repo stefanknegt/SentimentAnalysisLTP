@@ -78,13 +78,13 @@ def clean_str(string):
 
 def load_imdb_reviews():
     #Load the test and train data in seperate arrays
-    train_positive_sentences = [l.strip() for l in open("train-pos.txt").readlines()]
-    train_negative_sentences = [l.strip() for l in open("train-neg.txt").readlines()]
+    train_positive_sentences = [l.strip() for l in open("IMDB_Data/train-pos.txt").readlines()]
+    train_negative_sentences = [l.strip() for l in open("IMDB_Data/train-neg.txt").readlines()]
     train_positive_labels = [1 for sentence in train_positive_sentences]
     train_negative_labels = [0 for sentence in train_negative_sentences]
 
-    test_positive_sentences = [l.strip() for l in open("test-pos.txt").readlines()]
-    test_negative_sentences = [l.strip() for l in open("test-neg.txt").readlines()]
+    test_positive_sentences = [l.strip() for l in open("IMDB_Data/test-pos.txt").readlines()]
+    test_negative_sentences = [l.strip() for l in open("IMDB_Data/test-neg.txt").readlines()]
     test_positive_labels = [1 for sentence in test_positive_sentences]
     test_negative_labels = [0 for sentence in test_negative_sentences]
 
@@ -117,13 +117,13 @@ def load_imdb_reviews():
 
 def load_imdb_reviews_full():
     #Load the test and train data in seperate arrays
-    train_positive_sentences = [l.strip() for l in open("train-pos.txt").readlines()]
-    train_negative_sentences = [l.strip() for l in open("train-neg.txt").readlines()]
+    train_positive_sentences = [l.strip() for l in open("IMDB_Data/train-pos.txt").readlines()]
+    train_negative_sentences = [l.strip() for l in open("IMDB_Data/train-neg.txt").readlines()]
     train_positive_labels = [1 for sentence in train_positive_sentences]
     train_negative_labels = [0 for sentence in train_negative_sentences]
 
-    test_positive_sentences = [l.strip() for l in open("test-pos.txt").readlines()]
-    test_negative_sentences = [l.strip() for l in open("test-neg.txt").readlines()]
+    test_positive_sentences = [l.strip() for l in open("IMDB_Data/test-pos.txt").readlines()]
+    test_negative_sentences = [l.strip() for l in open("IMDB_Data/test-neg.txt").readlines()]
     test_positive_labels = [1 for sentence in test_positive_sentences]
     test_negative_labels = [0 for sentence in test_negative_sentences]
 
@@ -160,8 +160,8 @@ def load_rottentomatoes_reviews():
     Returns split sentences and labels.
     """
 
-    pos_path = "review_polarity/txt_sentoken/pos"
-    neg_path = "review_polarity/txt_sentoken/neg"
+    pos_path = "RT_Data/txt_sentoken/pos"
+    neg_path = "RT_Data/txt_sentoken/neg"
     pos_data_dir = os.listdir(pos_path)
     neg_data_dir = os.listdir(neg_path)
     pos_sentences = []
@@ -269,13 +269,13 @@ def logistic_regression(dataset):
 
     if(dataset == "IMDB"):
         #Load the test and train data in seperate arrays
-        train_positive_sentences = [l.strip() for l in open("train-pos.txt").readlines()]
-        train_negative_sentences = [l.strip() for l in open("train-neg.txt").readlines()]
+        train_positive_sentences = [l.strip() for l in open("IMDB_Data/train-pos.txt").readlines()]
+        train_negative_sentences = [l.strip() for l in open("IMDB_Data/train-neg.txt").readlines()]
         train_positive_labels = [1 for sentence in train_positive_sentences]
         train_negative_labels = [0 for sentence in train_negative_sentences]
 
-        test_positive_sentences = [l.strip() for l in open("test-pos.txt").readlines()]
-        test_negative_sentences = [l.strip() for l in open("test-neg.txt").readlines()]
+        test_positive_sentences = [l.strip() for l in open("IMDB_Data/test-pos.txt").readlines()]
+        test_negative_sentences = [l.strip() for l in open("IMDB_Data/test-neg.txt").readlines()]
         test_positive_labels = [1 for sentence in test_positive_sentences]
         test_negative_labels = [0 for sentence in test_negative_sentences]
 
@@ -320,7 +320,7 @@ def logistic_regression(dataset):
 
         #joblib.dump(classifier, 'IMDB.pkl')
     elif(dataset == "RT"):
-        data_dir = "review_polarity/txt_sentoken/"
+        data_dir = "RT_Data/txt_sentoken/"
         classes = ['pos', 'neg']
         # Read the data
         x_train = []
@@ -506,13 +506,13 @@ def load_model_predict(model_name, batch_size, sentences, labels, vocab_to_load)
 def load_lr_predict(model_name,dataset):
 
     if(dataset == "IMDB"):
-        train_positive_sentences = [l.strip() for l in open("train-pos.txt").readlines()]
-        train_negative_sentences = [l.strip() for l in open("train-neg.txt").readlines()]
+        train_positive_sentences = [l.strip() for l in open("IMDB_Data/train-pos.txt").readlines()]
+        train_negative_sentences = [l.strip() for l in open("IMDB_Data/train-neg.txt").readlines()]
         train_positive_labels = [1 for sentence in train_positive_sentences]
         train_negative_labels = [0 for sentence in train_negative_sentences]
 
-        test_positive_sentences = [l.strip() for l in open("test-pos.txt").readlines()]
-        test_negative_sentences = [l.strip() for l in open("test-neg.txt").readlines()]
+        test_positive_sentences = [l.strip() for l in open("IMDB_Data/test-pos.txt").readlines()]
+        test_negative_sentences = [l.strip() for l in open("IMDB_Data/test-neg.txt").readlines()]
         test_positive_labels = [1 for sentence in test_positive_sentences]
         test_negative_labels = [0 for sentence in test_negative_sentences]
 
@@ -538,7 +538,7 @@ def load_lr_predict(model_name,dataset):
         y_test = [label for sentence, label in test_data]
 
     if(dataset == "RT"):
-        data_dir = "review_polarity/txt_sentoken/"
+        data_dir = "IMDB_Data/txt_sentoken/"
         classes = ['pos', 'neg']
         # Read the data
         x_train = []
@@ -594,7 +594,7 @@ def lr_annotated_data(model_name):
 
 sentences, labels = load_imdb_reviews_full() #geeft nu 89.58->after 2 epochs en 90.78%->after 1 epoch
 #sentences, labels = load_imdb_reviews() #geeft nu 65 en 78% (10 en 5 epochs) Conv naar 85.5% zonder dropout!
-#sentences, labels = load_rottentomatoes_reviews() #geeft nu 74,5 en 88% (10 en 5 epochs) Conv naar 78% zonder dropout
+sentences, labels = load_rottentomatoes_reviews() #geeft nu 74,5 en 88% (10 en 5 epochs) Conv naar 78% zonder dropout
 
 #logistic_regression("RT")
 #logistic_regression("IMDB")
@@ -635,7 +635,7 @@ print ('vocab_size', vocab_size)
 print ('sentence max words', sentence_size)
 
 #MLP_embedding(x_train,y_train,x_test,y_test,vocab_size,sentence_size)
-#Conv_embedding(x_train,y_train,x_test,y_test,vocab_size,sentence_size)
+Conv_embedding(x_train,y_train,x_test,y_test,vocab_size,sentence_size)
 #LSTM_embedding(x_train,y_train,x_test,y_test,vocab_size,sentence_size)
 #LSTM_test(x_train, y_train, x_test, y_test,vocab_size,sentence_size)
 #LSTM_CNN(x_train, y_train, x_test, y_test,vocab_size,sentence_size)
