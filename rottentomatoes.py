@@ -15,7 +15,7 @@ from os.path import isfile, join
 
 
 import numpy as np
-#np.random.seed(113) #set seed before any keras import
+np.random.seed(10) #set seed before any keras import
 
 from keras.utils import np_utils
 from keras.models import Sequential
@@ -184,7 +184,7 @@ def MLP_embedding(x_train, y_train, x_test, y_test, vocab_size, sentence_size):
     model = Sequential()
     #Embedding layer gives as output a 32x500 matrix
     model.add(Embedding(vocab_size, 32, input_length=sentence_size)) #word vector size 32
-    model.add(Dropout(0.5))
+    model.add(Dropout(0.5)) #location of dropout does not really influence acc (before or after flatten)
     #Flatten the 32x500 to one dimension
     model.add(Flatten())
     #Add hidden layer with 250 nodes
@@ -195,7 +195,7 @@ def MLP_embedding(x_train, y_train, x_test, y_test, vocab_size, sentence_size):
     print(model.summary())
 
     # Fit the model (only 2 epochs are used since overfitting is a problem)
-    model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=3, batch_size=128, verbose=2)
+    model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=10, batch_size=128, verbose=2) # 128 > 64 > 32
     # Final evaluation of the model
     scores = model.evaluate(x_test, y_test, verbose=0)
     print("Accuracy: %.2f%%" % (scores[1]*100))
@@ -206,7 +206,7 @@ def Conv_embedding(x_train, y_train, x_test, y_test,vocab_size,sentence_size):
     model.add(Embedding(vocab_size, 32, input_length=sentence_size))
     model.add(Conv1D(filters=32, kernel_size=3, padding='same', activation='relu'))
     model.add(MaxPooling1D(pool_size=2))
-    #model.add(Conv1D(filters=32, kernel_size=4, padding='same', activation='relu'))
+    #model.add(Conv1D(filters=32, kernel_size=3, padding='same', activation='relu')) #this layers increases performance with load_data2
     #model.add(MaxPooling1D(pool_size=2))
     #model.add(Conv1D(filters=32, kernel_size=5, padding='same', activation='relu'))
     #model.add(MaxPooling1D(pool_size=2))
@@ -220,7 +220,7 @@ def Conv_embedding(x_train, y_train, x_test, y_test,vocab_size,sentence_size):
     print(model.summary())
 
     # Fit the model
-    model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=10, batch_size=128, verbose=2)
+    model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=10, batch_size=32, verbose=1) #batch size 32 works better than 64 which works slightly better than 128
     # Final evaluation of the model
     scores = model.evaluate(x_test, y_test, verbose=0)
     print("Accuracy: %.2f%%" % (scores[1]*100))
@@ -264,7 +264,6 @@ y_shuffled = y[shuffle_indices]
 
 #x_train, x_test = x_shuffled[:-1000], x_shuffled[-1000:]
 #y_train, y_test = y_shuffled[:-1000], y_shuffled[-1000:]
-
 x_train, x_test = x_shuffled[:-200], x_shuffled[-200:]
 y_train, y_test = y_shuffled[:-200], y_shuffled[-200:]
 
@@ -277,5 +276,6 @@ print ('dev shape:', x_test.shape)
 print ('vocab_size', vocab_size)
 print ('sentence max words', sentence_size)
 
-#Conv_embedding(x_train,y_train,x_test,y_test,vocab_size,sentence_size) Max attained so far is 87% for load_data2
-LSTM_embedding(x_train,y_train,x_test,y_test,vocab_size,sentence_size)
+#MLP_embedding(x_train,y_train,x_test,y_test,vocab_size,sentence_size)
+Conv_embedding(x_train,y_train,x_test,y_test,vocab_size,sentence_size) #Max attained so far is 87% for load_data2 and simple CNN with 1 (3,32) layer batch_size 128 and 0.5 dropout
+#LSTM_embedding(x_train,y_train,x_test,y_test,vocab_size,sentence_size)
