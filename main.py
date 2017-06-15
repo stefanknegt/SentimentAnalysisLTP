@@ -13,7 +13,7 @@ from matplotlib import pyplot
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.linear_model import SGDClassifier
 from sklearn.externals import joblib
@@ -282,7 +282,6 @@ def logistic_regression(dataset):
         #Concatenate the sentences and labels for both train and test data
         test_sentences = np.concatenate([test_positive_sentences,test_negative_sentences], axis=0)
         test_labels = np.concatenate([test_positive_labels,test_negative_labels],axis=0)
-
         train_sentences = np.concatenate([train_positive_sentences,train_negative_sentences],axis=0)
         train_labels =  np.concatenate([train_positive_labels,train_negative_labels],axis=0)
 
@@ -296,9 +295,17 @@ def logistic_regression(dataset):
 
         x_train = [sentence for sentence, label in train_data]
         y_train = [label for sentence, label in train_data]
-
         x_test = [sentence for sentence, label in test_data]
         y_test = [label for sentence, label in test_data]
+
+        #Since for this research we only want 10% test and 90% train
+        sentences = np.concatenate([x_train,x_test], axis=0)
+        labels = np.concatenate([y_train,y_test], axis=0)
+        cutoff = 0.1*len(sentences) #10% test and 90% train
+        print("Cutoff is %d" % cutoff)
+        x_train, x_test = sentences[:-int(cutoff)], sentences[-int(cutoff):]
+        y_train, y_test = labels[:-int(cutoff)], labels[-int(cutoff):]
+
 
         print("IMDB data loaded")
         #print(x_train[1])
@@ -385,7 +392,7 @@ def MLP_embedding(x_train, y_train, x_test, y_test, vocab_size, sentence_size):
     print(model.summary())
 
     # Fit the model (only 2 epochs are used since overfitting is a problem)
-    model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=5, batch_size=128, verbose=1) # 128 > 64 > 32 for RT
+    model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=10, batch_size=128, verbose=1) # 128 > 64 > 32 for RT
     # Final evaluation of the model
     scores = model.evaluate(x_test, y_test, verbose=0)
     print("Accuracy: %.2f%%" % (scores[1]*100))
@@ -436,6 +443,28 @@ def LSTM_embedding2(x_train, y_train, x_test, y_test,vocab_size,sentence_size):
     model = Sequential()
     model.add(Embedding(vocab_size, 128))
     model.add(LSTM(128, dropout=0.2, recurrent_dropout=0.2))
+    model.add(Dense(1, activation='sigmoid'))
+
+    # try using different optimizers and different optimizer configs
+    model.compile(loss='binary_crossentropy',
+                  optimizer='adam',
+                  metrics=['accuracy'])
+    print(model.summary())
+    print('Train...')
+    model.fit(x_train, y_train,
+              batch_size=32,
+              epochs=15,
+              validation_data=(x_test, y_test))
+    score, acc = model.evaluate(x_test, y_test,
+                                batch_size=32,verbose=0)
+    print('Test score:', score)
+    print('Test accuracy:', acc)
+
+def LSTM_embedding3(x_train,y_train,x_test,y_test,vocab_size,sentence_size):
+    model = Sequential()
+    model.add(Embedding(vocab_size, 32, input_length=sentence_size))
+    model.add(LSTM(200))
+    model.add(Dropout(0.2))
     model.add(Dense(1, activation='sigmoid'))
 
     # try using different optimizers and different optimizer configs
@@ -506,6 +535,7 @@ def load_model_predict(model_name, batch_size, sentences, labels, vocab_to_load)
 def load_lr_predict(model_name,dataset):
 
     if(dataset == "IMDB"):
+        #Load the test and train data in seperate arrays
         train_positive_sentences = [l.strip() for l in open("IMDB_Data/train-pos.txt").readlines()]
         train_negative_sentences = [l.strip() for l in open("IMDB_Data/train-neg.txt").readlines()]
         train_positive_labels = [1 for sentence in train_positive_sentences]
@@ -519,7 +549,6 @@ def load_lr_predict(model_name,dataset):
         #Concatenate the sentences and labels for both train and test data
         test_sentences = np.concatenate([test_positive_sentences,test_negative_sentences], axis=0)
         test_labels = np.concatenate([test_positive_labels,test_negative_labels],axis=0)
-
         train_sentences = np.concatenate([train_positive_sentences,train_negative_sentences],axis=0)
         train_labels =  np.concatenate([train_positive_labels,train_negative_labels],axis=0)
 
@@ -533,12 +562,21 @@ def load_lr_predict(model_name,dataset):
 
         x_train = [sentence for sentence, label in train_data]
         y_train = [label for sentence, label in train_data]
-
         x_test = [sentence for sentence, label in test_data]
         y_test = [label for sentence, label in test_data]
 
+        #Since for this research we only want 10% test and 90% train
+        sentences = np.concatenate([x_train,x_test], axis=0)
+        labels = np.concatenate([y_train,y_test], axis=0)
+        cutoff = 0.1*len(sentences) #10% test and 90% train
+        print("Cutoff is %d" % cutoff)
+        x_train, x_test = sentences[:-int(cutoff)], sentences[-int(cutoff):]
+        y_train, y_test = labels[:-int(cutoff)], labels[-int(cutoff):]
+
+        print("IMDB data loaded")
+
     if(dataset == "RT"):
-        data_dir = "IMDB_Data/txt_sentoken/"
+        data_dir = "RT_Data/txt_sentoken/"
         classes = ['pos', 'neg']
         # Read the data
         x_train = []
@@ -572,6 +610,39 @@ def load_lr_predict(model_name,dataset):
     print("===== LR accuracy with model %s on data %s ====" % (model_name, dataset))
     print("Classifier: {0:.2f}".format(accuracy_test*100))
 
+def plot_confusion_matrix(cm, classes,
+                          normalize=False,
+                          title='Confusion matrix',
+                          cmap=pyplot.cm.Blues):
+    """
+    This function prints and plots the confusion matrix.
+    Normalization can be applied by setting `normalize=True`.
+    """
+    pyplot.imshow(cm, interpolation='nearest', cmap=cmap)
+    pyplot.title(title)
+    pyplot.colorbar()
+    tick_marks = np.arange(len(classes))
+    pyplot.xticks(tick_marks, classes, rotation=45)
+    pyplot.yticks(tick_marks, classes)
+
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        print("Normalized confusion matrix")
+    else:
+        print('Confusion matrix, without normalization')
+
+    print(cm)
+
+    thresh = cm.max() / 2.
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        pyplot.text(j, i, cm[i, j],
+                 horizontalalignment="center",
+                 color="white" if cm[i, j] > thresh else "black")
+
+    pyplot.tight_layout()
+    pyplot.ylabel('True label')
+    pyplot.xlabel('Predicted label')
+
 def lr_annotated_data(model_name):
     sentences = [l.strip() for l in open("examples.txt").readlines()]
     labels = [0,1,1,1,0]
@@ -586,21 +657,39 @@ def lr_annotated_data(model_name):
     print("===== Accuracy for LR with model %s ====" % model_name)
     print("Classifier: {0:.2f}".format(accuracy_test*100))
 
+    for i in range (0,5):
+        print("True: %d Predicted %d" % (labels[i],y_predicted_test[i]))
+
+    cnf_matrix = confusion_matrix(labels, y_predicted_test)
+    np.set_printoptions(precision=2)
+
+    # Plot non-normalized confusion matrix
+    pyplot.figure()
+    plot_confusion_matrix(cnf_matrix, classes=[0,1],
+                      title='Confusion matrix, without normalization')
+
+    # Plot normalized confusion matrix
+    pyplot.figure()
+    plot_confusion_matrix(cnf_matrix, classes=[0,1], normalize=True,
+                      title='Normalized confusion matrix')
+
+    pyplot.show()
+
 #logistic_regression("IMDB")
 #logistic_regression("RT")
-#load_hard_examples("CONVRTCROSS.h5","vocabularyRT.npy")
-#lr_annotated_data("LRIMDB.pkl")
-#load_lr_predict("LRIMDB.pkl","RT")
+load_hard_examples("Trained_Models/CONVIMDBCROSS.h5","Trained_Models/vocabularyIMDB.npy")
+#lr_annotated_data("Trained_Models/LRIMDB.pkl")
+#load_lr_predict("Trained_Models/LRRT.pkl","IMDB")
 
-sentences, labels = load_imdb_reviews_full() #geeft nu 89.58->after 2 epochs en 90.78%->after 1 epoch
+#sentences, labels = load_imdb_reviews_full() #geeft nu 89.58->after 2 epochs en 90.78%->after 1 epoch
 #sentences, labels = load_imdb_reviews() #geeft nu 65 en 78% (10 en 5 epochs) Conv naar 85.5% zonder dropout!
-sentences, labels = load_rottentomatoes_reviews() #geeft nu 74,5 en 88% (10 en 5 epochs) Conv naar 78% zonder dropout
+#sentences, labels = load_rottentomatoes_reviews() #geeft nu 74,5 en 88% (10 en 5 epochs) Conv naar 78% zonder dropout
 
 #logistic_regression("RT")
 #logistic_regression("IMDB")
 #load_lr_predict("LRRT.pkl","IMDB")
 
-#load_model_predict("CONVRTCROSSGOED.h5",32,sentences,labels,"vocabularyRT.npy")
+#load_model_predict("Trained_Models/CONVRTCROSS.h5",32,sentences,labels,"Trained_Models/vocabularyRT.npy")
 
 padded_sentence = pad_sentences(sentences)
 vocabulary, vocabulary_inv = build_vocab(padded_sentence)
@@ -635,8 +724,9 @@ print ('vocab_size', vocab_size)
 print ('sentence max words', sentence_size)
 
 #MLP_embedding(x_train,y_train,x_test,y_test,vocab_size,sentence_size)
-Conv_embedding(x_train,y_train,x_test,y_test,vocab_size,sentence_size)
-#LSTM_embedding(x_train,y_train,x_test,y_test,vocab_size,sentence_size)
+#Conv_embedding(x_train,y_train,x_test,y_test,vocab_size,sentence_size)
+#LSTM_embedding2(x_train,y_train,x_test,y_test,vocab_size,sentence_size)
+#LSTM_embedding3(x_train,y_train,x_test,y_test,vocab_size,sentence_size)
 #LSTM_test(x_train, y_train, x_test, y_test,vocab_size,sentence_size)
 #LSTM_CNN(x_train, y_train, x_test, y_test,vocab_size,sentence_size)
 #logistic_regression("RT")
