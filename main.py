@@ -10,6 +10,7 @@ np.random.seed(10) #set seed before any keras import
 
 from collections import Counter
 from matplotlib import pyplot
+import pickle
 
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.linear_model import LogisticRegression
@@ -376,7 +377,7 @@ def logistic_regression(dataset):
     else:
         print("Unknown dataset")
 
-def MLP_embedding(x_train, y_train, x_test, y_test, x_dev, y_dev, vocab_size, sentence_size,dev):
+def MLP_embedding(x_train, y_train, x_test, y_test, x_dev, y_dev, vocab_size, sentence_size,dev,dataset):
     # create the model
     model = Sequential()
     #Embedding layer gives as output a 32x500 matrix
@@ -406,15 +407,15 @@ def MLP_embedding(x_train, y_train, x_test, y_test, x_dev, y_dev, vocab_size, se
         scores = model.evaluate(x_dev, y_dev, verbose=0)
         print("Accuracy: %.2f%%" % (scores[1]*100))
 
-def Conv_embedding(x_train, y_train, x_test, y_test, x_dev, y_dev, vocab_size,sentence_size,dev):
+def Conv_embedding(x_train, y_train, x_test, y_test, x_dev, y_dev, vocab_size,sentence_size,dev,dataset): # RT has 16 filters, kernelsize 3 and 4 and 5 epochs and IMDB has 32 filters kernelsize 4 and 1 epoch
     # create the model
     model = Sequential()
     model.add(Embedding(vocab_size, 32, input_length=sentence_size))
     model.add(Dropout(0.2))
-    model.add(Conv1D(filters=32, kernel_size=3, padding='same', activation='relu'))
+    model.add(Conv1D(filters=16, kernel_size=4, padding='same', activation='relu'))
     model.add(MaxPooling1D(pool_size=2))
-    #model.add(Conv1D(filters=32, kernel_size=3, padding='same', activation='relu')) #this layers increases performance with load_data2 for RT
-    #model.add(MaxPooling1D(pool_size=2))
+    model.add(Conv1D(filters=16, kernel_size=3, padding='same', activation='relu'))  #should be 16 for RT dataset
+    model.add(MaxPooling1D(pool_size=2))
     model.add(Dropout(0.2))
     model.add(Flatten())
     model.add(Dense(100, activation='relu'))
@@ -424,15 +425,15 @@ def Conv_embedding(x_train, y_train, x_test, y_test, x_dev, y_dev, vocab_size,se
 
     if dev == 0:
         # Fit the model
-        model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=5, batch_size=32, verbose=1) #batch size 32 works better than 64 which works slightly better than 128 for RT
+        model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=10, batch_size=32, verbose=1) # Epochs should be 1 for IMDB
         # Final evaluation of the model
         scores = model.evaluate(x_test, y_test, verbose=0)
         print("Accuracy: %.2f%%" % (scores[1]*100))
-        model.save('CONV'+dataset+'.h5')
+        #model.save('CONV'+dataset+'.h5')
     if dev == 1:
         print ("Using dev set for validation")
         # Fit the model
-        model.fit(x_train, y_train, validation_data=(x_dev, y_dev), epochs=5, batch_size=32, verbose=1) #batch size 32 works better than 64 which works slightly better than 128 for RT
+        model.fit(x_train, y_train, validation_data=(x_dev, y_dev), epochs=10, batch_size=32, verbose=1) #Epochs should be 1 for IMDB
         # Final evaluation of the model
         scores = model.evaluate(x_dev, y_dev, verbose=0)
         print("Accuracy: %.2f%%" % (scores[1]*100))
@@ -704,17 +705,17 @@ def test_hand_annoated():
     lr_annotated_data("Trained_Models/LRRT.pkl")
 
 
-def train_classifier(dataset, classifier, dev):
+def split_data(dataset):
     if dataset == "IMDB":
         sentences, labels = load_imdb_reviews_full()
     if dataset == "RT":
         sentences, labels = load_rottentomatoes_reviews()
 
-    padded_sentence = pad_sentences(sentences)
-    vocabulary, vocabulary_inv = build_vocab(padded_sentence)
+    padded_sentences = pad_sentences(sentences)
+    vocabulary, vocabulary_inv = build_vocab(padded_sentences)
     #np.save('vocabularyIMDB.npy', vocabulary)
     #np.save('vocabularyRT.npy', dictionary)
-    x, y = build_input_data(padded_sentence, labels, vocabulary)
+    x, y = build_input_data(padded_sentences, labels, vocabulary)
     vocab_size = len(vocabulary)
 
     # randomly shuffle data
@@ -731,6 +732,59 @@ def train_classifier(dataset, classifier, dev):
     x_dev, y_dev = x_shuffled[int(cutoffTest):int(cutoffDev)], y_shuffled[int(cutoffTest):int(cutoffDev)]
     x_train, y_train = x_shuffled[int(cutoffDev):],y_shuffled[int(cutoffDev):]
 
+    with open("x_train.txt", "wb") as fp:
+        pickle.dump(x_train, fp)
+    with open("y_train.txt", "wb") as fp:
+        pickle.dump(y_train, fp)
+
+    with open("x_test.txt", "wb") as fp:
+        pickle.dump(x_test, fp)
+    with open("y_test.txt", "wb") as fp:
+        pickle.dump(y_test, fp)
+
+    with open("x_dev.txt", "wb") as fp:
+        pickle.dump(x_dev, fp)
+    with open("y_dev.txt", "wb") as fp:
+        pickle.dump(y_dev, fp)
+
+    return vocab_size, x_train, y_train, x_test, y_test, x_dev, y_dev
+
+def train_classifier(dataset, classifier, dev):
+    #vocab_size, x_train, y_train, x_test, y_test, x_dev, y_dev = split_data(dataset) #only first time we need to split the dataset
+    if dataset == "RT":
+        with open("RT/x_train.txt", "rb") as fp:
+            x_train = pickle.load(fp)
+        with open("RT/y_train.txt", "rb") as fp:
+            y_train = pickle.load(fp)
+        with open("RT/x_test.txt", "rb") as fp:
+            x_test = pickle.load(fp)
+        with open("RT/y_test.txt", "rb") as fp:
+            y_test = pickle.load(fp)
+        with open("RT/x_dev.txt", "rb") as fp:
+            x_dev = pickle.load(fp)
+        with open("RT/y_dev.txt", "rb") as fp:
+            y_dev = pickle.load(fp)
+        vocab_size = 40695
+
+    if dataset == "IMDB":
+        with open("IMDB/x_train.txt", "rb") as fp:
+            x_train = pickle.load(fp)
+        with open("IMDB/y_train.txt", "rb") as fp:
+            y_train = pickle.load(fp)
+        with open("IMDB/x_test.txt", "rb") as fp:
+            x_test = pickle.load(fp)
+        with open("IMDB/y_test.txt", "rb") as fp:
+            y_test = pickle.load(fp)
+        with open("IMDB/x_dev.txt", "rb") as fp:
+            x_dev = pickle.load(fp)
+        with open("IMDB/y_dev.txt", "rb") as fp:
+            y_dev = pickle.load(fp)
+        vocab_size = 40695
+
+
+    print(x_dev[5])
+    print(y_dev[5])
+
     print("The distribution of pos and neg in train data is %.2f %.2f" % (float(np.count_nonzero(y_train)/len(y_train)),(1-float(np.count_nonzero(y_train)/len(y_train)))))
     print("The number of positive reviews in the train data is %d " % np.count_nonzero(y_train))
 
@@ -745,11 +799,12 @@ def train_classifier(dataset, classifier, dev):
     print ('vocab_size', vocab_size)
     print ('sentence max words', sentence_size)
     if (classifier == "CNN"):
-       Conv_embedding(x_train,y_train,x_test,y_test,x_dev, y_dev, vocab_size,sentence_size,dev)
+       Conv_embedding(x_train,y_train,x_test,y_test,x_dev, y_dev, vocab_size,sentence_size,dev,dataset)
     if (classifier == "MLP"):
-       MLP_embedding(x_train,y_train,x_test,y_test,x_dev, y_dev, vocab_size,sentence_size,dev)
+       MLP_embedding(x_train,y_train,x_test,y_test,x_dev, y_dev, vocab_size,sentence_size,dev,dataset)
 
 def main():
+
     dataset = input("Please enter the dataset you want to train on: ")
     classifier = input("Which classifier do you wanna use (CNN, MLP or LR) ")
 
@@ -767,6 +822,7 @@ def main():
 if __name__ == "__main__":
     main()
 
-
+#sentences, labels = load_imdb_reviews_full()
+#oad_model_predict("CONVRT.h5",32,sentences,labels,"Trained_Models/vocabularyIMDB.npy")
 #load_lr_predict("Trained_Models/LRRT.pkl","IMDB")
 #load_lr_predict("Trained_Models/LRIMDB.pkl","RT")
