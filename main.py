@@ -3,6 +3,7 @@ import random
 import re
 import os
 import io
+import sys
 import itertools
 from os.path import isfile, join
 np.random.seed(10) #set seed before any keras import
@@ -375,7 +376,7 @@ def logistic_regression(dataset):
     else:
         print("Unknown dataset")
 
-def MLP_embedding(x_train, y_train, x_test, y_test, vocab_size, sentence_size):
+def MLP_embedding(x_train, y_train, x_test, y_test, x_dev, y_dev, vocab_size, sentence_size,dev):
     # create the model
     model = Sequential()
     #Embedding layer gives as output a 32x500 matrix
@@ -390,15 +391,22 @@ def MLP_embedding(x_train, y_train, x_test, y_test, vocab_size, sentence_size):
     model.add(Dense(1, activation='sigmoid'))
     model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
     print(model.summary())
+    if dev == 0:
+        # Fit the model (only 2 epochs are used since overfitting is a problem)
+        model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=10, batch_size=128, verbose=1) # 128 > 64 > 32 for RT
+        # Final evaluation of the model
+        scores = model.evaluate(x_test, y_test, verbose=0)
+        print("Accuracy: %.2f%%" % (scores[1]*100))
+        model.save('MLP'+dataset+'.h5')
+    if dev == 1:
+        print ("Using dev set for validation")
+        # Fit the model (only 2 epochs are used since overfitting is a problem)
+        model.fit(x_train, y_train, validation_data=(x_dev, y_dev), epochs=10, batch_size=128, verbose=1) # 128 > 64 > 32 for RT
+        # Final evaluation of the model
+        scores = model.evaluate(x_dev, y_dev, verbose=0)
+        print("Accuracy: %.2f%%" % (scores[1]*100))
 
-    # Fit the model (only 2 epochs are used since overfitting is a problem)
-    model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=10, batch_size=128, verbose=1) # 128 > 64 > 32 for RT
-    # Final evaluation of the model
-    scores = model.evaluate(x_test, y_test, verbose=0)
-    print("Accuracy: %.2f%%" % (scores[1]*100))
-    model.save('MLPIMDBCROSS.h5')
-
-def Conv_embedding(x_train, y_train, x_test, y_test,vocab_size,sentence_size):
+def Conv_embedding(x_train, y_train, x_test, y_test, x_dev, y_dev, vocab_size,sentence_size,dev):
     # create the model
     model = Sequential()
     model.add(Embedding(vocab_size, 32, input_length=sentence_size))
@@ -414,12 +422,21 @@ def Conv_embedding(x_train, y_train, x_test, y_test,vocab_size,sentence_size):
     model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
     print(model.summary())
 
-    # Fit the model
-    model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=5, batch_size=32, verbose=1) #batch size 32 works better than 64 which works slightly better than 128 for RT
-    # Final evaluation of the model
-    scores = model.evaluate(x_test, y_test, verbose=0)
-    print("Accuracy: %.2f%%" % (scores[1]*100))
-    model.save('CONVRTCROSS.h5')
+    if dev == 0:
+        # Fit the model
+        model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=5, batch_size=32, verbose=1) #batch size 32 works better than 64 which works slightly better than 128 for RT
+        # Final evaluation of the model
+        scores = model.evaluate(x_test, y_test, verbose=0)
+        print("Accuracy: %.2f%%" % (scores[1]*100))
+        model.save('CONV'+dataset+'.h5')
+    if dev == 1:
+        print ("Using dev set for validation")
+        # Fit the model
+        model.fit(x_train, y_train, validation_data=(x_dev, y_dev), epochs=5, batch_size=32, verbose=1) #batch size 32 works better than 64 which works slightly better than 128 for RT
+        # Final evaluation of the model
+        scores = model.evaluate(x_dev, y_dev, verbose=0)
+        print("Accuracy: %.2f%%" % (scores[1]*100))
+        #model.save('CONVRTCROSS.h5')
 
 def LSTM_embedding(x_train, y_train, x_test, y_test,vocab_size,sentence_size):
     # Create the model
@@ -675,58 +692,81 @@ def lr_annotated_data(model_name):
 
     pyplot.show()
 
-#logistic_regression("IMDB")
-#logistic_regression("RT")
-load_hard_examples("Trained_Models/CONVIMDBCROSS.h5","Trained_Models/vocabularyIMDB.npy")
-#lr_annotated_data("Trained_Models/LRIMDB.pkl")
+def test_hand_annoated():
+    #Test on hand-annotated examples
+    load_hard_examples("Trained_Models/CONVIMDBCROSS.h5","Trained_Models/vocabularyIMDB.npy")
+    load_hard_examples("Trained_Models/MLPIMDBCROSS.h5","Trained_Models/vocabularyIMDB.npy")
+
+    load_hard_examples("Trained_Models/CONVRTCROSS.h5","Trained_Models/vocabularyRT.npy")
+    load_hard_examples("Trained_Models/MLPRTCROSS.h5","Trained_Models/vocabularyRT.npy")
+
+    lr_annotated_data("Trained_Models/LRIMDB.pkl")
+    lr_annotated_data("Trained_Models/LRRT.pkl")
+
+
+def train_classifier(dataset, classifier, dev):
+    if dataset == "IMDB":
+        sentences, labels = load_imdb_reviews_full()
+    if dataset == "RT":
+        sentences, labels = load_rottentomatoes_reviews()
+
+    padded_sentence = pad_sentences(sentences)
+    vocabulary, vocabulary_inv = build_vocab(padded_sentence)
+    #np.save('vocabularyIMDB.npy', vocabulary)
+    #np.save('vocabularyRT.npy', dictionary)
+    x, y = build_input_data(padded_sentence, labels, vocabulary)
+    vocab_size = len(vocabulary)
+
+    # randomly shuffle data
+    shuffle_indices = np.random.permutation(np.arange(len(y)))
+    x_shuffled = x[shuffle_indices]
+    y_shuffled = y[shuffle_indices]
+
+    # split train/dev set
+    cutoffTest = 0.1*len(x_shuffled) #10% test 10% dev and 80% train
+    cutoffDev = 0.2*len(x_shuffled)
+    print("Cutoff for Test is %d and for dev it is %d" % (cutoffTest,cutoffDev))
+
+    x_test,y_test = x_shuffled[:int(cutoffTest)], y_shuffled[:int(cutoffTest)]
+    x_dev, y_dev = x_shuffled[int(cutoffTest):int(cutoffDev)], y_shuffled[int(cutoffTest):int(cutoffDev)]
+    x_train, y_train = x_shuffled[int(cutoffDev):],y_shuffled[int(cutoffDev):]
+
+    print("The distribution of pos and neg in train data is %.2f %.2f" % (float(np.count_nonzero(y_train)/len(y_train)),(1-float(np.count_nonzero(y_train)/len(y_train)))))
+    print("The number of positive reviews in the train data is %d " % np.count_nonzero(y_train))
+
+    sentence_size = x_train.shape[1]
+
+    print("Done loading data..")
+
+    print ('Train/Dev/Test split: %d/%d/%d' % (len(y_train), len(y_dev), len(y_test)))
+    print ('train shape:', x_train.shape)
+    print ('dev shape:',x_dev.shape)
+    print ('test shape:', x_test.shape)
+    print ('vocab_size', vocab_size)
+    print ('sentence max words', sentence_size)
+    if (classifier == "CNN"):
+       Conv_embedding(x_train,y_train,x_test,y_test,x_dev, y_dev, vocab_size,sentence_size,dev)
+    if (classifier == "MLP"):
+       MLP_embedding(x_train,y_train,x_test,y_test,x_dev, y_dev, vocab_size,sentence_size,dev)
+
+def main():
+    dataset = input("Please enter the dataset you want to train on: ")
+    classifier = input("Which classifier do you wanna use (CNN, MLP or LR) ")
+
+    if (classifier == "LR"):
+        print("Starting the logistic regression for the %s dataset" %dataset )
+        logistic_regression(dataset)
+    else:
+        validation = input("Do you want to use the dev or test set for validation? ")
+        print("Starting the %s for the %s dataset" % (classifier, dataset) )
+        if validation == "dev":
+            train_classifier(dataset,classifier,1)
+        if validation == "test":
+            train_classifier(dataset,classifier,0)
+
+if __name__ == "__main__":
+    main()
+
+
 #load_lr_predict("Trained_Models/LRRT.pkl","IMDB")
-
-#sentences, labels = load_imdb_reviews_full() #geeft nu 89.58->after 2 epochs en 90.78%->after 1 epoch
-#sentences, labels = load_imdb_reviews() #geeft nu 65 en 78% (10 en 5 epochs) Conv naar 85.5% zonder dropout!
-#sentences, labels = load_rottentomatoes_reviews() #geeft nu 74,5 en 88% (10 en 5 epochs) Conv naar 78% zonder dropout
-
-#logistic_regression("RT")
-#logistic_regression("IMDB")
-#load_lr_predict("LRRT.pkl","IMDB")
-
-#load_model_predict("Trained_Models/CONVRTCROSS.h5",32,sentences,labels,"Trained_Models/vocabularyRT.npy")
-
-padded_sentence = pad_sentences(sentences)
-vocabulary, vocabulary_inv = build_vocab(padded_sentence)
-#np.save('vocabularyIMDB.npy', vocabulary)
-#np.save('vocabularyRT.npy', dictionary)
-x, y = build_input_data(padded_sentence, labels, vocabulary)
-
-vocab_size = len(vocabulary)
-
-# randomly shuffle data
-shuffle_indices = np.random.permutation(np.arange(len(y)))
-x_shuffled = x[shuffle_indices]
-y_shuffled = y[shuffle_indices]
-
-# split train/dev set
-cutoff = 0.1*len(x_shuffled) #10% test and 90% train
-print("Cutoff is %d" % cutoff)
-x_train, x_test = x_shuffled[:-int(cutoff)], x_shuffled[-int(cutoff):]
-y_train, y_test = y_shuffled[:-int(cutoff)], y_shuffled[-int(cutoff):]
-
-print("The distribution of pos and neg in train data is %.2f %.2f" % (float(np.count_nonzero(y_train)/len(y_train)),(1-float(np.count_nonzero(y_train)/len(y_train)))))
-print("The number of positive reviews in the train data is %d " % np.count_nonzero(y_train))
-
-sentence_size = x_train.shape[1]
-
-print("Done loading data..")
-
-print ('Train/Test split: %d/%d' % (len(y_train), len(y_test)))
-print ('train shape:', x_train.shape)
-print ('test shape:', x_test.shape)
-print ('vocab_size', vocab_size)
-print ('sentence max words', sentence_size)
-
-#MLP_embedding(x_train,y_train,x_test,y_test,vocab_size,sentence_size)
-#Conv_embedding(x_train,y_train,x_test,y_test,vocab_size,sentence_size)
-#LSTM_embedding2(x_train,y_train,x_test,y_test,vocab_size,sentence_size)
-#LSTM_embedding3(x_train,y_train,x_test,y_test,vocab_size,sentence_size)
-#LSTM_test(x_train, y_train, x_test, y_test,vocab_size,sentence_size)
-#LSTM_CNN(x_train, y_train, x_test, y_test,vocab_size,sentence_size)
-#logistic_regression("RT")
+#load_lr_predict("Trained_Models/LRIMDB.pkl","RT")
